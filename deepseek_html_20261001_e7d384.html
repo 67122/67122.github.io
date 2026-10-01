@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>🌳 班级树</title>
+<style>
+  :root{
+    --ink:#2E3B34;
+    --muted:#7C9187;
+    --green:#43A047;
+    --green-lt:#6BCB77;
+    --line:#DCEAE0;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Segoe UI",Roboto,sans-serif;
+    color:var(--ink);
+    background:linear-gradient(180deg,#D8EFFF 0%,#E8F6EC 42%,#FDF8EB 100%);
+    overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  #app{height:100%;display:flex;flex-direction:column;}
+
+  /* ================= 顶栏 ================= */
+  header{
+    flex:none;height:62px;padding:0 20px;
+    display:flex;align-items:center;gap:12px;
+    position:relative;z-index:20;
+  }
+  .brand{font-size:19px;font-weight:800;letter-spacing:.3px;display:flex;align-items:center;gap:8px;white-space:nowrap;}
+  .brand .emoji{font-size:23px;}
+
+  .counter{
+    margin-left:auto;
+    background:rgba(255,255,255,.82);
+    border:1px solid rgba(255,255,255,.95);
+    padding:7px 16px;border-radius:999px;
+    font-size:13px;color:#5C7265;white-space:nowrap;
+    box-shadow:0 3px 12px rgba(80,120,95,.09);
+    display:flex;align-items:baseline;gap:4px;
+  }
+  .counter b{color:var(--green);font-size:16px;font-weight:800;}
+
+  .header-btns{display:flex;gap:8px;}
+  .hbtn{
+    border:1px solid rgba(255,255,255,.95);
+    background:rgba(255,255,255,.82);
+    padding:9px 16px;border-radius:999px;
+    font-family:inherit;font-size:13.5px;font-weight:600;color:#3F5448;
+    cursor:pointer;transition:.2s;white-space:nowrap;
+    box-shadow:0 3px 12px rgba(80,120,95,.09);
+  }
+  .hbtn:hover{background:#fff;transform:translateY(-1px);box-shadow:0 6px 18px rgba(80,120,95,.16);}
+  .hbtn.primary{
+    background:linear-gradient(135deg,#6BCB77,#43A047);
+    color:#fff;border-color:transparent;
+    box-shadow:0 6px 18px rgba(76,175,80,.28);
+  }
+  .hbtn.primary:hover{box-shadow:0 9px 24px rgba(76,175,80,.36);}
+
+  /* ================= 主体 ================= */
+  .main{
+    flex:1;min-height:0;
+    display:flex;gap:14px;
+    padding:0 16px 16px;
+  }
+  .stage{position:relative;flex:1;min-width:0;min-height:0;}
+  #tree{position:absolute;inset:0;width:100%;height:100%;display:block;}
+
+  /* ================= 空状态 ================= */
+  .empty{
+    position:absolute;left:50%;top:42%;
+    transform:translate(-50%,-50%);
+    width:min(84%,340px);text-align:center;
+    pointer-events:none;transition:opacity .5s;
+  }
+  .empty.hide{opacity:0;}
+  .empty .ico{font-size:46px;display:block;animation:bob 3.2s ease-in-out infinite;}
+  @keyframes bob{0%,100%{transform:translateY(0) rotate(-6deg);}50%{transform:translateY(-9px) rotate(6deg);}}
+  .empty h3{font-size:16px;color:#6D8578;margin-top:12px;font-weight:700;}
+  .empty p{font-size:13px;color:#9CB0A4;margin-top:7px;line-height:1.8;}
+
+  /* ================= 右侧卡片 ================= */
+  .card{
+    flex:none;width:336px;
+    display:flex;flex-direction:column;gap:14px;
+    padding:22px;
+    background:rgba(255,255,255,.88);
+    -webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);
+    border:1px solid rgba(255,255,255,.95);
+    border-radius:26px;
+    box-shadow:0 14px 46px rgba(70,110,85,.13);
+    overflow-y:auto;
+    transition:width .42s cubic-bezier(.4,0,.2,1),
+               padding .42s cubic-bezier(.4,0,.2,1),
+               opacity .3s,
+               transform .42s cubic-bezier(.4,0,.2,1);
+  }
+  .card.collapsed{
+    width:0;padding-left:0;padding-right:0;
+    opacity:0;transform:translateX(24px);
+    pointer-events:none;border-width:0;overflow:hidden;
+  }
+
+  .card h2{font-size:17px;font-weight:800;}
+  .card .sub{font-size:12.5px;color:var(--muted);line-height:1.7;margin-top:5px;}
+
+  .upload-row{display:flex;align-items:center;gap:14px;}
+  .avatar{
+    width:72px;height:72px;border-radius:50%;flex:none;cursor:pointer;
+    border:2px dashed #B6D9C2;
+    background:#F5FBF6 center/cover no-repeat;
+    display:flex;align-items:center;justify-content:center;
+    font-size:23px;color:#9ABFAA;transition:.22s;
+  }
+  .avatar:hover{border-color:#7CC48C;background-color:#EDF8F0;transform:scale(1.04);}
+  .avatar.has-photo{border-style:solid;border-color:#fff;box-shadow:0 0 0 2.5px #7CC48C;}
+  .upload-tip{display:flex;flex-direction:column;gap:3px;font-size:12px;color:#93A79B;line-height:1.5;}
+  .upload-tip strong{font-size:13px;color:#4E6357;font-weight:700;}
+
+  input[type=text]{
+    width:100%;padding:14px 16px;border-radius:15px;
+    border:1.5px solid var(--line);
+    font-size:16px;font-family:inherit;color:var(--ink);
+    background:#fff;outline:none;transition:.22s;
+  }
+  input[type=text]::placeholder{color:#AFC2B7;}
+  input[type=text]:focus{border-color:#7CC48C;box-shadow:0 0 0 4px rgba(124,196,140,.16);}
+  input[type=text].shake{animation:shake .42s;}
+  @keyframes shake{
+    0%,100%{transform:translateX(0);}
+    20%{transform:translateX(-7px);}
+    40%{transform:translateX(7px);}
+    60%{transform:translateX(-5px);}
+    80%{transform:translateX(5px);}
+  }
+
+  .btn{
+    width:100%;padding:15px;border-radius:15px;border:none;
+    font-family:inherit;font-size:15.5px;font-weight:700;
+    cursor:pointer;transition:.2s;
+  }
+  .btn.primary{
+    background:linear-gradient(135deg,#6BCB77,#43A047);
+    color:#fff;box-shadow:0 9px 22px rgba(76,175,80,.30);
+  }
+  .btn.primary:hover{transform:translateY(-2px);box-shadow:0 12px 26px rgba(76,175,80,.38);}
+  .btn.primary:active{transform:translateY(0) scale(.985);}
+  .btn.ghost{
+    background:rgba(255,255,255,.75);
+    border:1.5px solid var(--line);
+    color:#4E6357;font-size:13.5px;font-weight:600;
+  }
+  .btn.ghost:hover{border-color:#A8D8B4;background:#F4FBF6;}
+
+  .link{
+    background:none;border:none;cursor:pointer;font-family:inherit;
+    color:#B4C1B9;font-size:12px;text-decoration:underline;
+    text-underline-offset:3px;transition:color .2s;
+    align-self:center;
+  }
+  .link:hover{color:#E57373;}
+
+  /* ================= 重新打开 ================= */
+  .reopen{
+    position:fixed;right:22px;bottom:22px;z-index:60;
+    padding:13px 22px;border-radius:999px;border:none;
+    font-family:inherit;font-size:14px;font-weight:800;
+    background:#fff;color:var(--green);cursor:pointer;
+    box-shadow:0 10px 28px rgba(76,175,80,.26);
+    opacity:0;pointer-events:none;transform:translateY(12px);
+    transition:all .32s cubic-bezier(.34,1.56,.64,1);
+  }
+  .reopen.show{opacity:1;pointer-events:auto;transform:translateY(0);}
+
+  /* ================= 二维码弹窗 ================= */
+  .modal{
+    position:fixed;inset:0;z-index:100;
+    background:rgba(28,44,36,.45);
+    -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+    display:flex;align-items:center;justify-content:center;
+    padding:20px;
+    opacity:0;pointer-events:none;transition:opacity .28s;
+  }
+  .modal.show{opacity:1;pointer-events:auto;}
+  .modal-box{
+    background:#fff;border-radius:26px;
+    padding:28px 26px 24px;
+    width:min(360px,100%);
+    text-align:center;
+    box-shadow:0 24px 70px rgba(20,50,35,.28);
+    transform:scale(.92);
+    transition:transform .32s cubic-bezier(.34,1.56,.64,1);
+    max-height:90vh;overflow-y:auto;
+  }
+  .modal.show .modal-box{transform:scale(1);}
+  .modal-box h3{font-size:18px;font-weight:800;}
+  .modal-box .msub{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.7;}
+
+  .qr-wrap{
+    margin:18px auto 14px;
+    width:216px;height:216px;padding:10px;
+    background:#fff;border:1px solid #E9F2EC;border-radius:16px;
+    display:flex;align-items:center;justify-content:center;
+    overflow:hidden;
+  }
+  .qr-wrap svg{width:100%!important;height:100%!important;display:block;}
+  .qr-fallback{
+    font-size:13px;color:#B0BDB5;line-height:1.6;padding:10px;
+  }
+
+  .qr-url{
+    font-size:11.5px;color:#8FA396;
+    word-break:break-all;line-height:1.6;
+    background:#F5FAF6;border-radius:10px;
+    padding:9px 12px;margin-bottom:14px;
+  }
+  .qr-note{
+    font-size:11.5px;color:#A9B8AE;line-height:1.7;
+    margin-bottom:16px;
+  }
+  .qr-note.warn{color:#E08A3C;font-weight:600;}
+
+  /* ================= Toast ================= */
+  .toast{
+    position:fixed;left:50%;bottom:40px;z-index:200;
+    transform:translate(-50%,18px);
+    background:rgba(46,59,52,.93);color:#fff;
+    padding:13px 24px;border-radius:999px;
+    font-size:14px;font-weight:600;
+    opacity:0;pointer-events:none;
+    transition:all .34s cubic-bezier(.34,1.56,.64,1);
+    box-shadow:0 10px 30px rgba(0,0,0,.18);
+    max-width:82vw;text-align:center;
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0);}
+
+  /* ================= 节点动画 ================= */
+  .node{
+    animation:pop .55s cubic-bezier(.34,1.56,.64,1) both;
+    transform-box:fill-box;transform-origin:center;
+  }
+  @keyframes pop{
+    from{opacity:0;transform:scale(.2);}
+    to{opacity:1;transform:scale(1);}
+  }
+
+  /* ================= 移动端 ================= */
+  @media (max-width:880px){
+    header{height:54px;padding:0 14px;gap:8px;}
+    .brand{font-size:16px;}
+    .brand .emoji{font-size:20px;}
+    .counter{padding:6px 12px;font-size:12px;}
+    .counter b{font-size:14px;}
+    .hbtn{padding:8px 13px;font-size:12.5px;}
+    .hbtn .lbl{display:none;}
+
+    .main{flex-direction:column;padding:0 10px 10px;gap:10px;}
+    .stage{min-height:150px;}
+
+    .card{
+      width:100%;max-height:52vh;
+      padding:18px;border-radius:22px;gap:12px;
+      transition:max-height .42s cubic-bezier(.4,0,.2,1),
+                 padding .42s cubic-bezier(.4,0,.2,1),
+                 opacity .3s;
+    }
+    .card.collapsed{
+      width:100%;max-height:0;height:0;
+      padding-top:0;padding-bottom:0;
+      transform:none;overflow:hidden;
+    }
+    .avatar{width:62px;height:62px;font-size:20px;}
+    .empty{top:36%;}
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <header>
+    <div class="brand"><span class="emoji">🌳</span>班级树</div>
+    <div class="counter"><b id="countNum">0</b><span>位同学</span></div>
+    <div class="header-btns">
+      <button class="hbtn" id="btnQr">📱 <span class="lbl">扫码加入</span></button>
+      <button class="hbtn primary" id="btnPresent">✨ <span class="lbl">展示班级树</span></button>
+    </div>
+  </header>
+
+  <div class="main">
+    <div class="stage">
+      <svg id="tree" viewBox="0 0 1000 820" preserveAspectRatio="xMidYMax meet"></svg>
+      <div class="empty" id="empty">
+        <span class="ico">🌱</span>
+        <h3>这棵树还在等它的第一批叶子</h3>
+        <p>输入你的名字，成为班级树的第一位成员吧</p>
+      </div>
+    </div>
+
+    <aside class="card" id="card">
+      <div>
+        <h2>加入班级树</h2>
+        <p class="sub">写下名字，也可以放一张代表你的照片 🌿</p>
+      </div>
+
+      <div class="upload-row">
+        <div class="avatar" id="avatarBox" title="点击上传照片">📷</div>
+        <div class="upload-tip">
+          <strong>上传照片（选填）</strong>
+          <span>自拍、头像、喜欢的图都可以</span>
+        </div>
+      </div>
+      <input type="file" id="photoInput" accept="image/*" hidden>
+
+      <input type="text" id="nameInput" placeholder="请输入你的名字" maxlength="12"
+             autocomplete="off" enterkeyhint="done">
+
+      <button class="btn primary" id="joinBtn">加入班级树</button>
+      <button class="btn ghost" id="finishBtn">全班录入完毕 · 展示班级树</button>
+
+      <button class="link" id="clearBtn">清空全部重来</button>
+    </aside>
+  </div>
+</div>
+
+<button class="reopen" id="reopenBtn">＋ 继续添加</button>
+
+<!-- 二维码弹窗 -->
+<div class="modal" id="qrModal">
+  <div class="modal-box">
+    <h3>扫码加入班级树</h3>
+    <p class="msub">用手机扫下面的二维码，打开填写页面</p>
+    <div class="qr-wrap" id="qrWrap"></div>
+    <div class="qr-url" id="qrUrl"></div>
+    <p class="qr-note" id="qrNote"></p>
+    <button class="btn primary" id="qrClose">知道了</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* ==================== 常量 ==================== */
+  var STORE_KEY = 'classTree.v1';
+  var MAX_STUDENTS = 80;
+  var PALETTE = ['#FF8A65','#FFB74D','#FFD54F','#AED581','#4DB6AC','#4FC3F7',
+                 '#7986CB','#BA68C8','#F06292','#A1887F','#9575CD','#4DD0E1'];
+
+  /* ==================== 状态 ==================== */
+  var students = [];
+  var pendingPhoto = null;
+  var treeData = null;
+  var seenIds = {};
+  var toastTimer = null;
+
+  /* ==================== 工具函数 ==================== */
+  function $(id) { return document.getElementById(id); }
+
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      var t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c];
+    });
+  }
+
+  function firstChar(s) {
+    var a = Array.from(String(s).trim());
+    return a[0] || '?';
+  }
+
+  function uid() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  }
+
+  function toast(msg) {
+    var el = $('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.classList.remove('show'); }, 2300);
+  }
+
+  /* ==================== 生成树的骨架 ==================== */
+  function buildTree() {
+    var rand = mulberry32(20240501);
+    var branches = [];
+    var tips = [];
+
+    function grow(x, y, angle, len, w, depth) {
+      var x2 = x + Math.cos(angle) * len;
+      var y2 = y + Math.sin(angle) * len;
+      branches.push({ x1: x, y1: y, x2: x2, y2: y2, w: w });
+
+      if (depth <= 0) {
+        tips.push({ x: x2, y: y2 });
+        return;
+      }
+
+      var count = (depth > 4) ? 2 : (rand() < 0.45 ? 2 : 3);
+      var spread = 0.52 + rand() * 0.34;
+
+      for (var i = 0; i < count; i++) {
+        var t = count === 1 ? 0.5 : i / (count - 1);
+        var a = angle + (t - 0.5) * spread + (rand() - 0.5) * 0.22;
+        grow(x2, y2, a, len * (0.71 + rand() * 0.1), w * 0.67, depth - 1);
+      }
+    }
+
+    grow(500, 800, -Math.PI / 2, 190, 46, 6);
+    return { branches: branches, tips: tips };
+  }
+
+  /* ==================== 位置分配 ==================== */
+  function pickPositions(n, minDist) {
+    if (n === 0) return [];
+
+    var rand = mulberry32(778899);
+    var pool = [];
+    for (var t = 0; t < treeData.tips.length; t++) {
+      pool.push({ x: treeData.tips[t].x, y: treeData.tips[t].y });
+    }
+
+    // 候选点不够时补充
+    var guard = 0;
+    while (pool.length < n && guard < 3000) {
+      var base = treeData.tips[guard % treeData.tips.length];
+      pool.push({
+        x: base.x + (rand() - 0.5) * 95,
+        y: base.y + (rand() - 0.5) * 95
+      });
+      guard++;
+    }
+
+    // 最远点采样：让头像尽量分散
+    var chosen = [];
+    var used = [];
+    for (var u = 0; u < pool.length; u++) used.push(false);
+
+    var startIdx = 0, bestD = -1;
+    for (var i = 0; i < pool.length; i++) {
+      var dx0 = pool[i].x - 500, dy0 = pool[i].y - 380;
+      var d0 = dx0 * dx0 + dy0 * dy0;
+      if (d0 > bestD) { bestD = d0; startIdx = i; }
+    }
+    chosen.push(pool[startIdx]);
+    used[startIdx] = true;
+
+    while (chosen.length < n) {
+      var pick = -1, pickScore = -1;
+      for (var a = 0; a < pool.length; a++) {
+        if (used[a]) continue;
+        var near = Infinity;
+        for (var b = 0; b < chosen.length; b++) {
+          var dx = pool[a].x - chosen[b].x;
+          var dy = pool[a].y - chosen[b].y;
+          var dd = dx * dx + dy * dy;
+          if (dd < near) near = dd;
+        }
+        if (near > pickScore) { pickScore = near; pick = a; }
+      }
+      if (pick === -1) break;
+      used[pick] = true;
+      chosen.push(pool[pick]);
+    }
+
+    // 松弛：把挨得太近的头像推开
+    for (var it = 0; it < 20; it++) {
+      for (var p = 0; p < chosen.length; p++) {
+        for (var q = p + 1; q < chosen.length; q++) {
+          var ddx = chosen[q].x - chosen[p].x;
+          var ddy = chosen[q].y - chosen[p].y;
+          var dist = Math.sqrt(ddx * ddx + ddy * ddy) || 0.001;
+          if (dist < minDist) {
+            var push = ((minDist - dist) / dist) * 0.5;
+            ddx *= push; ddy *= push;
+            chosen[p].x -= ddx; chosen[p].y -= ddy;
+            chosen[q].x += ddx; chosen[q].y += ddy;
+          }
+        }
+      }
+      for (var m = 0; m < chosen.length; m++) {
+        chosen[m].x = Math.max(58, Math.min(942, chosen[m].x));
+        chosen[m].y = Math.max(70, Math.min(700, chosen[m].y));
+      }
+    }
+
+    return chosen;
+  }
+
+  /* ==================== 渲染班级树 ==================== */
+  function render() {
+    var n = students.length;
+
+    var radius = 32;
+    if (n > 12) radius = 28;
+    if (n > 22) radius = 24;
+    if (n > 34) radius = 20;
+    if (n > 50) radius = 17;
+    if (n > 66) radius = 14;
+
+    var positions = pickPositions(n, radius * 2 + 10);
+    var out = '';
+
+    /* ---------- defs ---------- */
+    out += '<defs>';
+    out += '<linearGradient id="trunkG" x1="0" y1="0" x2="1" y2="0">'
+         +   '<stop offset="0%" stop-color="#8B6B4A"/>'
+         +   '<stop offset="45%" stop-color="#B39070"/>'
+         +   '<stop offset="100%" stop-color="#7A5C40"/>'
+         + '</linearGradient>';
+    out += '<radialGradient id="canopyG" cx="50%" cy="50%" r="50%">'
+         +   '<stop offset="0%" stop-color="#C9ECCB" stop-opacity="0.95"/>'
+         +   '<stop offset="65%" stop-color="#C9ECCB" stop-opacity="0.28"/>'
+         +   '<stop offset="100%" stop-color="#C9ECCB" stop-opacity="0"/>'
+         + '</radialGradient>';
+
+    for (var i = 0; i < n; i++) {
+      if (students[i].photo) {
+        out += '<clipPath id="av' + i + '"><circle r="' + radius + '"/></clipPath>';
+      }
+    }
+    out += '</defs>';
+
+    /* ---------- 树冠光晕 ---------- */
+    out += '<ellipse cx="500" cy="350" rx="400" ry="320" fill="url(#canopyG)"/>';
+
+    /* ---------- 装饰叶片 ---------- */
+    var lr = mulberry32(918273);
+    var leafColors = ['#A8DCA9', '#86CE8A', '#C6E6A8', '#6FC274', '#BCE3A6'];
+    for (var L = 0; L < 150; L++) {
+      var ang = lr() * Math.PI * 2;
+      var rr = Math.sqrt(lr());
+      var lx = 500 + Math.cos(ang) * rr * 350;
+      var ly = 340 + Math.sin(ang) * rr * 265;
+      var sz = 8 + lr() * 26;
+      var lc = leafColors[(lr() * leafColors.length) | 0];
+      var op = (0.10 + lr() * 0.24).toFixed(2);
+      out += '<circle cx="' + lx.toFixed(1) + '" cy="' + ly.toFixed(1) + '" r="'
+           + sz.toFixed(1) + '" fill="' + lc + '" opacity="' + op + '"/>';
+    }
+
+    /* ---------- 枝干 ---------- */
+    for (var bI = 0; bI < treeData.branches.length; bI++) {
+      var br = treeData.branches[bI];
+      out += '<line x1="' + br.x1.toFixed(1) + '" y1="' + br.y1.toFixed(1)
+           + '" x2="' + br.x2.toFixed(1) + '" y2="' + br.y2.toFixed(1)
+           + '" stroke="url(#trunkG)" stroke-width="' + br.w.toFixed(1)
+           + '" stroke-linecap="round"/>';
+    }
+
+    /* ---------- 学生节点 ---------- */
+    for (var s = 0; s < n; s++) {
+      var st = students[s];
+      var pos = positions[s];
+      if (!pos) continue;
+
+      var color = st.color || PALETTE[s % PALETTE.length];
+      var isNew = !seenIds[st.id];
+      var delay = Math.min(s * 40, 1400);
+      var fs = Math.max(10, Math.min(15, radius * 0.62));
+
+      out += '<g transform="translate(' + pos.x.toFixed(1) + ',' + pos.y.toFixed(1) + ')">';
+
+      out += '<g' + (isNew ? ' class="node" style="animation-delay:' + delay + 'ms"' : '') + '>';
+      out += '<circle r="' + (radius + 3.5) + '" fill="#ffffff" opacity="0.92"/>';
+
+      if (st.photo) {
+        out += '<image href="' + st.photo + '" x="' + (-radius) + '" y="' + (-radius)
+             + '" width="' + (radius * 2) + '" height="' + (radius * 2)
+             + '" preserveAspectRatio="xMidYMid slice" clip-path="url(#av' + s + ')"/>';
+      } else {
+        out += '<circle r="' + radius + '" fill="' + color + '"/>';
+        out += '<text y="' + (radius * 0.37).toFixed(1) + '" text-anchor="middle"'
+             + ' font-size="' + (radius * 1.0).toFixed(1) + '" fill="#ffffff"'
+             + ' font-weight="700" font-family="inherit">' + esc(firstChar(st.name)) + '</text>';
+      }
+
+      out += '<circle r="' + radius + '" fill="none" stroke="#ffffff" stroke-width="'
+           + Math.max(2, radius * 0.13).toFixed(1) + '"/>';
+      out += '</g>';
+
+      /* 姓名（白色描边，任何背景都看得清） */
+      out += '<text y="' + (radius + 15).toFixed(1) + '" text-anchor="middle"'
+           + ' font-size="' + fs.toFixed(1) + '" font-weight="700" fill="#3B4A42"'
+           + ' stroke="#ffffff" stroke-width="3.2" paint-order="stroke"'
+           + ' stroke-linejoin="round" font-family="inherit">' + esc(st.name) + '</text>';
+
+      out += '</g>';
+    }
+
+    $('tree').innerHTML = out;
+    $('countNum').textContent = n;
+
+    if (n > 0) $('empty').classList.add('hide');
+    else $('empty').classList.remove('hide');
+
+    // 记录已经出现过的节点，避免重复播动画
+    for (var k = 0; k < n; k++) seenIds[students[k].id] = true;
+  }
+
+  /* ==================== 本地存储 ==================== */
+  function loadStudents() {
+    try {
+      var raw = localStorage.getItem(STORE_KEY);
+      var arr = raw ? JSON.parse(raw) : [];
+      students = Array.isArray(arr) ? arr : [];
+    } catch (e) {
+      students = [];
+    }
+  }
+
+  function saveStudents() {
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify(students));
+      return true;
+    } catch (e) {
+      toast('⚠️ 存储空间不足，照片可能太大了');
+      return false;
+    }
+  }
+
+  /* ==================== 照片处理 ==================== */
+  function processPhoto(file) {
+    if (!file) return;
+
+    if (!file.type || file.type.indexOf('image/') !== 0) {
+      toast('请选择一张图片文件');
+      return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      toast('图片太大了，换一张小一点的吧');
+      return;
+    }
+
+    var reader = new FileReader();
+
+    reader.onload = function (ev) {
+      var img = new Image();
+
+      img.onload = function () {
+        try {
+          var SIZE = 220;
+          var cv = document.createElement('canvas');
+          cv.width = SIZE;
+          cv.height = SIZE;
+          var ctx = cv.getContext('2d');
+
+          var side = Math.min(img.width, img.height);
+          var sx = (img.width - side) / 2;
+          var sy = (img.height - side) / 2;
+          ctx.drawImage(img, sx, sy, side, side, 0, 0, SIZE, SIZE);
+
+          pendingPhoto = cv.toDataURL('image/jpeg', 0.82);
+          updateAvatar();
+        } catch (err) {
+          toast('图片处理失败，换一张试试');
+        }
+      };
+
+      img.onerror = function () { toast('图片读取失败'); };
+      img.src = ev.target.result;
+    };
+
+    reader.onerror = function () { toast('图片读取失败'); };
+    reader.readAsDataURL(file);
+  }
+
+  function updateAvatar() {
+    var box = $('avatarBox');
+    if (pendingPhoto) {
+      box.style.backgroundImage = 'url(' + pendingPhoto + ')';
+      box.textContent = '';
+      box.classList.add('has-photo');
+    } else {
+      box.style.backgroundImage = '';
+      box.textContent = '📷';
+      box.classList.remove('has-photo');
+    }
+  }
+
+  /* ==================== 加入班级树 ==================== */
+  function join() {
+    var input = $('nameInput');
+    var name = input.value.trim();
+
+    if (!name) {
+      input.classList.add('shake');
+      setTimeout(function () { input.classList.remove('shake'); }, 450);
+      input.focus();
+      toast('请先写下你的名字～');
+      return;
+    }
+    if (Array.from(name).length > 12) {
+      toast('名字太长啦，最多 12 个字');
+      return;
+    }
+    if (students.length >= MAX_STUDENTS) {
+      toast('这棵树已经满员啦 🌳');
+      return;
+    }
+
+    students.push({
+      id: uid(),
+      name: name,
+      photo: pendingPhoto || null,
+      color: PALETTE[students.length % PALETTE.length],
+      ts: Date.now()
+    });
+
+    saveStudents();
+    render();
+
+    // 重置表单，方便下一位同学
+    input.value = '';
+    pendingPhoto = null;
+    updateAvatar();
+    $('photoInput').value = '';
+
+    toast('🎉 欢迎 ' + name + '，你已加入班级树！');
+
+    if (window.matchMedia('(min-width: 881px)').matches) {
+      input.focus();
+    }
+  }
+
+  /* ==================== 二维码 ==================== */
+  function openQr() {
+    var url = location.href.split('#')[0];
+    var wrap = $('qrWrap');
+    var note = $('qrNote');
+
+    wrap.innerHTML = '';
+
+    if (typeof window.qrcode === 'function') {
+      try {
+        var qr = window.qrcode(0, 'M');
+        qr.addData(url);
+        qr.make();
+        wrap.innerHTML = qr.createSvgTag({ cellSize: 8, margin: 4 });
+
+        var svg = wrap.querySelector('svg');
+        if (svg) {
+          if (!svg.getAttribute('viewBox')) {
+            var w = parseFloat(svg.getAttribute('width')) || 200;
+            svg.setAttribute('viewBox', '0 0 ' + w + ' ' + w);
+          }
+          svg.removeAttribute('width');
+          svg.removeAttribute('height');
+          svg.style.width = '100%';
+          svg.style.height = '100%';
+          svg.style.display = 'block';
+        }
+      } catch (e) {
+        wrap.innerHTML = '<div class="qr-fallback">二维码生成失败，请手动打开下方链接</div>';
+      }
+    } else {
+      wrap.innerHTML = '<div class="qr-fallback">未能加载二维码组件<br>请手动打开下方链接</div>';
+    }
+
+    $('qrUrl').textContent = url;
+
+    if (location.protocol === 'file:') {
+      note.className = 'qr-note warn';
+      note.textContent = '⚠️ 当前是本地文件，手机扫码打不开。请先把此文件上传到网上（如 GitHub Pages / Gitee Pages / 任意静态托管），再用线上链接分享。';
+    } else {
+      note.className = 'qr-note';
+      note.textContent = '提示：同学们在手机上扫码后，即可打开同一个填写页面。';
+    }
+
+    $('qrModal').classList.add('show');
+  }
+
+  /* ==================== 展示 / 收起 ==================== */
+  function enterPresent() {
+    if (students.length === 0) {
+      toast('还没有同学加入呢 🌱');
+      return;
+    }
+    $('card').classList.add('collapsed');
+    $('reopenBtn').classList.add('show');
+  }
+
+  function exitPresent() {
+    $('card').classList.remove('collapsed');
+    $('reopenBtn').classList.remove('show');
+    setTimeout(function () { $('nameInput').focus(); }, 430);
+  }
+
+  /* ==================== 事件绑定 ==================== */
+  function bindEvents() {
+    // 头像上传
+    $('avatarBox').addEventListener('click', function () {
+      $('photoInput').click();
+    });
+
+    $('photoInput').addEventListener('change', function (e) {
+      var f = e.target.files && e.target.files[0];
+      if (f) processPhoto(f);
+      e.target.value = '';
+    });
+
+    // 加入
+    $('joinBtn').addEventListener('click', join);
+
+    $('nameInput').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        join();
+      }
+    });
+
+    // 展示
+    $('btnPresent').addEventListener('click', enterPresent);
+    $('finishBtn').addEventListener('click', enterPresent);
+    $('reopenBtn').addEventListener('click', exitPresent);
+
+    // 二维码
+    $('btnQr').addEventListener('click', openQr);
+    $('qrClose').addEventListener('click', function () {
+      $('qrModal').classList.remove('show');
+    });
+    $('qrModal').addEventListener('click', function (e) {
+      if (e.target === $('qrModal')) $('qrModal').classList.remove('show');
+    });
+
+    // 清空
+    $('clearBtn').addEventListener('click', function () {
+      if (students.length === 0) {
+        toast('已经是空的啦');
+        return;
+      }
+      if (!confirm('确定要清空全部 ' + students.length + ' 位同学吗？此操作不可撤销。')) return;
+
+      students = [];
+      seenIds = {};
+      saveStudents();
+      render();
+      toast('已清空，可以重新开始 🌱');
+    });
+
+    // 跨标签页同步（同一个浏览器打开多个页面时自动同步）
+    window.addEventListener('storage', function (e) {
+      if (e.key === STORE_KEY) {
+        loadStudents();
+        render();
+      }
+    });
+  }
+
+  /* ==================== 启动 ==================== */
+  function init() {
+    treeData = buildTree();
+    loadStudents();
+    bindEvents();
+    updateAvatar();
+    render();
+
+    if (window.matchMedia('(min-width: 881px)').matches) {
+      setTimeout(function () { $('nameInput').focus(); }, 400);
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+})();
+</script>
+</body>
+</html>
